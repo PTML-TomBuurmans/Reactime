@@ -3,16 +3,18 @@ import { useDispatch, useSelector } from 'react-redux';
 import { launchContentScript, setTab } from '../slices/mainSlice';
 import { MainState, RootState, ErrorContainerProps } from '../FrontendTypes';
 import { RefreshCw, Github, PlayCircle } from 'lucide-react';
+import { useState } from 'react';
 
 function ErrorContainer(props: ErrorContainerProps): JSX.Element {
   const dispatch = useDispatch();
   const { tabs, currentTitle, currentTab }: MainState = useSelector(
     (state: RootState) => state.main,
   );
+  const [allowedUrl, setAllowedUrl] = useState();
 
   // Helper function to check if a URL is localhost
-  const isLocalhost = (url: string): boolean => {
-    return url.startsWith('http://localhost:') || url.startsWith('https://localhost:');
+  const isLocalhostOrAllowedUrl = (url: string): boolean => {
+    return url.startsWith('http://localhost:') || url.startsWith('https://localhost:') || url.startsWith(allowedUrl);
   };
 
   // Add effect to initialize currentTab if not set
@@ -22,7 +24,7 @@ function ErrorContainer(props: ErrorContainerProps): JSX.Element {
         try {
           // Query specifically for localhost tabs first
           const tabs = await chrome.tabs.query({ currentWindow: true });
-          const localhostTab = tabs.find(tab => tab.url && isLocalhost(tab.url));
+          const localhostTab = tabs.find(tab => tab.url && isLocalhostOrAllowedUrl(tab.url));
           
           if (localhostTab?.id) {
             dispatch(setTab(localhostTab.id));
@@ -48,7 +50,7 @@ function ErrorContainer(props: ErrorContainerProps): JSX.Element {
       // If no current tab, try to find localhost tab first
       if (!currentTab) {
         const tabs = await chrome.tabs.query({ currentWindow: true });
-        const localhostTab = tabs.find(tab => tab.url && isLocalhost(tab.url));
+        const localhostTab = tabs.find(tab => tab.url && isLocalhostOrAllowedUrl(tab.url));
         
         if (localhostTab?.id) {
           dispatch(setTab(localhostTab.id));
@@ -61,10 +63,10 @@ function ErrorContainer(props: ErrorContainerProps): JSX.Element {
 
       // Verify current tab is still localhost
       const tab = await chrome.tabs.get(currentTab);
-      if (!tab.url || !isLocalhost(tab.url)) {
+      if (!tab.url || !isLocalhostOrAllowedUrl(tab.url)) {
         // Try to find a localhost tab
         const tabs = await chrome.tabs.query({ currentWindow: true });
-        const localhostTab = tabs.find(tab => tab.url && isLocalhost(tab.url));
+        const localhostTab = tabs.find(tab => tab.url && isLocalhostOrAllowedUrl(tab.url));
         
         if (localhostTab?.id) {
           dispatch(setTab(localhostTab.id));
@@ -96,6 +98,10 @@ function ErrorContainer(props: ErrorContainerProps): JSX.Element {
     setTimeout(() => {
       chrome.tabs.reload(tabId);
     }, 100);
+  }
+
+  const onUrlInput = (value: string) => {
+    setAllowedUrl(value);
   }
 
   return (
@@ -133,6 +139,9 @@ function ErrorContainer(props: ErrorContainerProps): JSX.Element {
           Note: Reactime only works with React applications and by default only launches on URLs
           starting with localhost.
         </p>
+
+        <label>Additional allowed URL (besides localhost)</label>
+        <input onInput={onUrlInput} />
 
         <button type='button' className='launch-button' onClick={launch}>
           <PlayCircle size={20} />
